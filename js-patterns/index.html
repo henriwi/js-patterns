@@ -1,0 +1,469 @@
+    <!DOCTYPE html>
+<html>
+  <head>
+    <title>JavaScript patterns</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+    <script src="http://cloud.github.com/downloads/gnab/remark/remark-0.4.4.min.js" type="text/javascript"></script>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js" type="text/javascript"></script>
+    <script src="http://cloud.github.com/downloads/kjbekkelund/remark-bekk/bekk-0.0.4.js" type="text/javascript"></script>
+    <link href="http://cloud.github.com/downloads/kjbekkelund/remark-bekk/bekk-0.0.4.css" type="text/css" rel="stylesheet">
+    <style type="text/css" media="screen">
+      /* Slideshow styles */
+      .footnote {position: absolute; right: 2em; bottom: 3em;}
+      .red {color: #fd5158}
+    </style>
+  </head>
+  <body>
+    <textarea id="source">
+class: front-page
+
+# JavaScript patterns
+## Faggruppemøte programmeringsspråk
+
+Henrik Wingerei
+
+21/02/13
+
+---
+
+class: agenda
+
+#Agenda
+
+* Hva er patterns?
+* Coding patterns
+* Funksjonspatterns
+* Object creation patterns
+
+---
+
+# Hva er patterns?
+
+* Et pattern kan sees på som en løsning på et vanlig problem.
+* En "best practice", eller en mal for løsning.
+* Unngår og "finne opp hjulet på nytt"
+* Bedrer kommunikasjon mellom utviklere
+
+
+Boken *JavaScript Patterns*\* diskuterer følgende typer
+
+* Design patterns
+* **Coding patterns**
+* Antipatterns
+
+.footnote[.red[*]_JavaScript patterns - Stoyan Stefano_]
+
+---
+
+# Coding patterns
+
+Innenfor coding patterns eksisterer det en rekke forskjellige typer
+
+* Funksjonspatterns  
+  * Callback pattern
+  * IIFE (Immediatly Invoked Function Expression)
+  * Curry
+
+* Object creation patterns
+  
+  * Module pattern
+  * Sandbox patterns
+  * Chaining pattern
+
+---
+class: center, middle
+
+#Funksjonspatterns
+
+---
+
+# Callback
+
+* I JavaScript er funksjoner objekter
+* Funksjoner kan dermed bli sendt som argumenter til andre funksjoner (Higher order functions)
+* Bra å bruke i design av biblioteker
+* Brukes mye i API-er for å asynkront hente ressurser (f.eks. jQuery)
+
+
+    .javascript
+    var text = downloadAsync("file.txt", function() {
+      console.log("Finished");
+    });
+
+Kan også ha navngitte callbacks for bedre gjenbruk
+
+  
+    .javascript
+    var text = downloadAsync("file.txt", downloadFinished);
+
+    function downloadFinished() {
+      console.log("Finished");
+    }
+
+---
+# Callback
+
+Blir fort mye unødvendig nøsting av callbacks
+
+    
+    .javascript
+    downloadAsync("fileA.txt", function(a) {
+      downloadAsync("fileB.txt", function(b) {
+        downloadAsync("fileC.txt", function(c) {
+          console.log("Contents: " + a + b + c);
+        });
+      });
+    });
+
+
+<!-- Kan derfor bruker *promises* (også kjent som *deferreds* eller *futures*)
+
+
+    .javascript
+    //Uten promises
+    downloadAsync("file.txt", function(file) {
+      console.log("file:" + file)
+    });
+
+
+    //Callback
+    var p = downloadP("fileA.txt");
+
+    p.then(function(file) {
+      console.log("file:" + file)
+    }); -->
+
+
+---
+
+# Clojures
+
+* JavaScript har funksjons-scope (ikke block-scope)
+  * Funksjoner kan referere til variabler definert utenfor gjeldende funksjon
+  * Kan også referere til disse etter at de ytre funksjonene har returnert
+  * Closures lagrer en referanse (ikke bare verdien) til variabler utenfor gjeldene funksjon
+
+
+    .javascript
+    function sandwichMaker(magicIngredient) {
+      return function(filling) {
+        return magicIngredient + " and " + filling;
+      }
+    }
+
+    var ham = sandwichMaker("ham");
+    ham("cheese")                   // "ham and cheese"
+    ham("mustard")                  // "ham and mustard"
+
+---
+
+# Immediatly Invoked Function Expression
+* Immediatly Invoked Function Expression (IIFE) er en funksjon som eksekveres med en gang den er definert
+
+
+    .javascript
+    (function() {
+      alert("hello");
+    }());
+
+Brukes til å lage lokalt scope
+
+
+    .javascript
+    (function() {
+      // foo og bar vil være lokale variabler
+      var foo = "foo";
+      var bar = "bar";
+    }());
+
+---
+ # Immediatly Invoked Function Expression
+    .javascript
+    function wrapElements(a) {
+      var result = [];
+      for (var i = 0; n = a.length; i < n; i++) {
+        result[i] = function() { return a[i]; };
+      }
+    }
+
+    var wrapped = wrapElements([10, 20, 30, 40, 50]);
+    var f = wrapped[0];
+    f(); //undefined
+
+Dette vil ikke fungere siden *clojures lagrer en referanse og ikke den faktiske verdien*
+
+Bruker derfor IIFE til å "tvinge" opprettelsen av et lokalt scope.
+
+
+    .javascript
+    function wrapElements(a) {
+      var result = [];
+      for (var i = 0; n = a.length; i < n; i++) {
+        (function(j) {
+          result[i] = function() { return a[j]; };
+        })(i);
+      }
+    }
+
+    var wrapped = wrapElements([10, 20, 30, 40]);
+    wrapped[0]; // 10
+  
+
+<!-- --- -->
+
+<!-- # Curry
+
+* *Currying* betyr å binde en funksjon til et subsett av dens parametere
+* Lager en ny funksjon med et "fixed" sett av parametere
+* Navngitt etter Haskell Curry
+
+
+    .javascript
+    function simpleURL(protocol, domain, path) {
+      return protocol + "://" + domain + "/" + path;
+    }
+
+Ofte er det nødvendig å lage absolutte URL-er basert på en liste med stier
+
+    
+    .javascript
+    var urls = paths.map(function(path) {
+      return simpleULR("http", siteDomain, path);
+    }); 
+
+Det eneste som forandres for hver iterasjon er *path*-argumentet
+
+    
+    .javascript
+    var urls = paths.map(simpleURL.bind(null, "http", siteDomain)); -->
+
+
+---
+class: center, middle
+
+
+# Object creation patterns
+
+---
+
+# Module pattern
+
+* Ved å opprette objekt-literaler oppnås ingen forskjell på private/public variabler/funksjoner    
+
+
+    .javascript
+    var module = {
+      counter: 0,
+      items: ["a", "b", "c"],
+      next: function() {
+        if (!this.hasNext()) {
+          return this\.items[this.counter++];
+        }
+      },
+      hasNext: function() {
+        return this.counter === this.items.max;
+      }
+    }
+
+
+    module.next() // a, b, c
+    // Tilgang til "private" variabler/metoder
+    module.counter // 0, 1, 2
+    module.hasNext(); // false, true
+    module.max // 3
+
+---
+
+# Module pattern
+
+* Et av de mest bruke patterns i JavaScript
+* Enkapsulering skjer vha closures og IIFE's
+* Gir bedre struktur på koden ved å separere koden i passende moduler
+<!-- Gir mulighet til å lage moduler av forskjellig type kode -->
+<!-- Bruker IIFE til å lage private scope. IIFE-funksjonen returnere et objekt med et public API
+Clojures gjør at dette public API-et har tilgang til de private variablene definert utenfor funksjonen. -->
+
+
+    .javascript
+    var module = (function() {
+      var counter = 0;
+      var items = ["a", "b", "c"];
+
+      function next() {
+        if (!hasNext()) {
+          return items[counter++];
+        }
+      }
+
+      function hasNext() {
+        return counter === items.length;
+      };
+
+      // Revealing module pattern
+      return {
+        getNext: getNext
+      }
+    })();
+
+    module.next() // a, b, c
+    module.counter // undefined
+    module.hasNext(); // Object has no method 'hasNext' 
+
+---
+
+# Sandbox pattern
+* Vanlig å bruke et namespace for hver applikasjon/bibliotek for å unngå globale variabler og navnekollisjoner
+
+
+    .javascript
+    var MYAPP = MYAPP || {};
+    MYAPP.module1 = { ... };
+
+
+Namespace-patternet har noen ulemper
+
+* Avhengig av én global variable - en del av koden kan endre på den globale instansen og påvirke resten av applikasjonen
+* Mer å skrive under utvikling
+* Tregere ytelse pga lenger variabelnavn - dårligere minifiseringsmuligheter
+<!-- globale variabler blir som regel ikke omskrevet -->
+
+Dette er utfordringer som Sandbox-pattern prøver å løse!
+
+---
+# Sandbox pattern
+* Istedenfor ett globalt objekt (MYAPP), har vi en global konstruktør-funksjon (Sandbox)
+* Brukes blant annet av YUI
+
+
+    .javascript
+    Sandbox('ajax', 'dom', function(box) {
+      // kode som bruker ajax- og dom-modulen
+    });
+
+
+---
+
+#Sandbox pattern
+    
+
+    .javascript
+    function Sandbox() {
+        var args = Array.prototype.slice.call(arguments),
+            callback = args.pop(),
+            modules = (args[0] && typeof args[0] === "string") ? args : args[0],
+            i;
+
+        if (!(this instanceof Sandbox)) {
+          return new Sandbox(modules, callback);
+        }
+
+        if (!modules || modules == '*') {
+          modules = [];
+          for (i in Sandbox.modules) {
+            if (Sandbox.modules.hasOwnProperty(i)) {
+              modules.push(i);
+            }
+          }
+        }
+
+        for (i = 0; i < modules.length; i += 1) {
+          Sandbox\.modules[modules[i]](this);
+        }
+
+        callback(this);
+      }
+<!-- Det siste som skjer er at brukeren får tilbake en instans av en "box" med all forespurt funksjonalitet -->
+
+---
+
+# Sandbox pattern
+
+
+    .javascript
+    Sandbox.modules = {};
+
+    Sandbox.modules.dom = function (box) {
+      box.getElement = function () { };
+      box.getStyle = function () { };
+    };
+
+    Sandbox.modules.event = function (box) {
+      box.attachEvent = function () { };
+      box.detachEvent = function () { };
+    };
+
+    Sandbox.modules.ajax = function (box) {
+      box.makeRequest = function () { };
+      box.getResponse = function () { };
+    };
+
+---
+
+#Sandbox pattern
+
+      // how to use
+      Sandbox(['ajax', 'event'], function (box) {
+        // console.log(box);
+      });
+
+      Sandbox('ajax', 'dom', function (box) {
+        // console.log(box);
+      });
+
+      Sandbox('*', function (box) {
+        // console.log(box);
+      });
+
+---
+
+#Chaining pattern
+
+* Også kjent som *builder*-pattern.
+* Funksjoner returnerer *this* istedenfor undefined (ingenting)
+* Gjør det mulig å kalle funksjoner på objekter etter hverandre i samme statement
+* Brukes blant annet mye av jQuery
+
+---
+
+#Chaining pattern
+
+
+    .javascript
+    var obj = {
+      classes: [],
+      events: [],
+      addClass: function(clazz) {
+        this.classes.push(clazz);
+        return this;
+      },
+      addEvent: function(event) {
+        this.events.push(event);
+        return this;
+      }
+    }
+
+    //Kan dermed skrive
+    obj.addClass("red").addClass("active").addEvent("click");
+
+    //Istedenfor
+    obj.addClass("red");
+    obj.addClass("active");
+    obj.addEvent("click");
+
+---
+class: round
+
+# JavaScript Design Patterns
+
+<!-- Lyst til å lære mer om design patterns i JavaScript? -->
+
+<!-- ![JavaScript Patterns](js-patterns.png) -->
+<!-- .right-column[![Effective JavaScript](effective-js.jpg)] -->
+
+---
+
+
+    </textarea>
+    <div id="slideshow"></div>
+  </body>
+</html>
